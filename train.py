@@ -1,4 +1,3 @@
-import faulthandler
 import torch
 import torch.nn as nn
 from datetime import datetime
@@ -19,9 +18,6 @@ from utils.utils import get_logger, EarlyStopper
 from utils.trainer import Trainer
 from utils.losses import get_loss
 
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-torch.autograd.set_detect_anomaly(True)
-faulthandler.enable(open("low_level.log", "w"))
 
 def train_func(config, train_paths, valid_paths):
 
@@ -29,51 +25,40 @@ def train_func(config, train_paths, valid_paths):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"device is {device}")
     train_serial = datetime.now().strftime("%Y%m%d_%H%M%S")
-    train_result_path = os.path.join(root_path, "results",
-                                        f'{config["model_name"]}-vcf_{config["model_parameters"]["vcf_mode"]}', "dropout_{}_{}_{}".format(config['model_parameters']['p3'], config['model_parameters']['p4'],
+    train_result_path = os.path.join(root_path, "results", 'dataset', 
+                                        config["model_name"],
+                                        "ex_{}_{}_{}".format(config['model_parameters']['p3'], config['model_parameters']['p4'],
                                          config['model_parameters']['p5'],),
                                         train_serial)
     os.makedirs(train_result_path, exist_ok=True)
 
     logger = get_logger(name='train',
-                        file_path=os.path.join(train_result_path, 'logging.txt'),
+                        file_path=os.path.join(train_result_path, 'log.log'),
                         level='info')
-    
+
     train_dataset = Custom_Dataset(
-         data_path=train_paths, size=(config['height'], config['width']), mode='train', edge_pad=True
+         data_path=train_paths, size=(config['height'], config['width']), mode='train', edge_pad=True,
     )   
 
     valid_dataset = Custom_Dataset(
-         data_path=valid_paths, size=(config['height'], config['width']), mode='valid', edge_pad=True
+         data_path=valid_paths, size=(config['height'], config['width']), mode='valid', edge_pad=True,
     )
     dataloader = {
         "train":DataLoader(
-            dataset=train_dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True,
-            num_workers=0,
+            dataset=train_dataset, batch_size=config['batch_size'], shuffle=True, drop_last=False
         ),
         "valid":DataLoader(
-            dataset=valid_dataset, batch_size=config['batch_size'], shuffle=True, drop_last=True,
-            num_workers=0,
+            dataset=valid_dataset, batch_size=config['batch_size'], shuffle=True, drop_last=False
         )
     }
     logger.info(f"Load dataset, train: {len(dataloader['train'])}, val: {len(dataloader['valid'])}")
     # model setting
 
                                     
-    model = get_model(config['model_name'], config, device)
 
+    model = get_model(config['model_name'])
+    model = model(**config['model_parameters']).to(device)
 
-    # model_load_path = glob(os.path.join(root_path, "results", 'dataset_1700', 
-    #                                     config["model_name"],  "drop_expanded_rotate_discrete_noise_005",
-    #                                     "{}_{}_{}".format(config['model_parameters']['enc_use_drop'], config['model_parameters']['use_skip_drop'],
-    #                                      config['model_parameters']['use_dec_drop'],), '*'))[0] 
-    # if os.path.isdir(model_load_path):
-    #     model.load_state_dict(torch.load(os.path.join(model_load_path, 'model.pt'))['model'])
-
-    # print("encoder drop out", model.encoder.blocks[0][4])
-    # print("skip drop out", model.decoder.blocks[0]['skip_blocks'][0][4])
-    # print("decoder drop out", model.decoder.blocks[0]['merge_block'][3])
-    #print("decoder drop out", model.decoder.blocks[0]['block'][3])
     # optimizer setting
     optimizer = optim.AdamW(
         params=model.parameters(), lr=config['training']["initial_learning_rate"]
@@ -85,16 +70,9 @@ def train_func(config, train_paths, valid_paths):
 
     metric_func = dict()
     for each_func in config['metirc_func']:
-        metric_func[each_func] = get_metric(each_func, device=device)
+        metric_func[each_func] = get_metric(each_func)
 
-    if config['is_cls']:
-        cls_metric_func = dict()
-        for each_func in config['cls_metric_func']:
-            cls_metric_func[each_func] = get_metric(each_func, device=device)
-    else:
-        cls_metric_func = None
-
-    loss_func = get_loss(config['loss_name'], config['loss_config'], config['is_cls'])
+    loss_func = get_loss(**config['loss_config'])
 
     earlystopper = EarlyStopper(
         patience=config['earlystopping_patience'],
@@ -113,7 +91,6 @@ def train_func(config, train_paths, valid_paths):
         optimizer=optimizer,
         scheduler=scheduler,
         metric_func=metric_func,
-        cls_metric_func=cls_metric_func,
         loss_func=loss_func,
         device=device,
         logger=logger
@@ -137,11 +114,8 @@ def train_func(config, train_paths, valid_paths):
         row['train_loss'] = trainer.loss
         row['train_sem_loss'] = trainer.sem_loss
         row['train_bd_loss'] = trainer.bd_loss
-        row['train_vcf_loss'] = trainer.vcf_loss
         for key, value in trainer.metric.items():
             row['train_{}'.format(key)] = value
-        for key, value in trainer.vcf_metric.items():
-            row['train_vcf_{}'.format(key)] = value
         row['train_elapsed_time'] = round(end, 3)
 
 
@@ -155,15 +129,11 @@ def train_func(config, train_paths, valid_paths):
         row['val_loss'] = trainer.loss
         row['val_sem_loss'] = trainer.sem_loss
         row['val_bd_loss'] = trainer.bd_loss
-        row['val_vcf_loss'] = trainer.vcf_loss
         for key, value in trainer.metric.items():
             row['val_{}'.format(key)] = value
-        for key, value in trainer.vcf_metric.items():
-            row['val_vcf_{}'.format(key)] = value
         row['val_elapsed_time'] = round(end, 3)
 
         trainer.clear_history()
-
         # Log
         record.add_row(row)
         record.save_plot(config['plot'])
@@ -183,7 +153,6 @@ def train_func(config, train_paths, valid_paths):
     print("END TRAINING")
     logger.info("END TRAINING")
     return
-
 
 
 
@@ -209,38 +178,32 @@ if __name__=="__main__":
 
     os.environ['CUDA_VISIBLE_DEVICES'] = "0"
 
-    train_path, valid_path = load_data(config['dataset_path'])
+    train_paths, valid_paths = load_data(config['dataset_path'])
 
     max_cnt = 14
     cnt = 0
-    print("train path len : ",len(train_path))
-    print("valid path len : ",len(valid_path))
+    print("train path len : ",len(train_paths))
+    print("valid path len : ",len(valid_paths))
     for enc_rate in range(0 if config['tuning'] else config['p3'], config['p3']+1):
         for skip_rate in range(0 if config['tuning'] else config['p4'], config['p4']+1):
             for dec_rate in range(0 if config['tuning'] else config['p5'], config['p5'] + 1):
                 if (enc_rate < skip_rate and skip_rate < dec_rate) or (enc_rate==0 and skip_rate==0 and dec_rate == 0) or (enc_rate==0 and skip_rate==0 and skip_rate < dec_rate) or (enc_rate==0 and enc_rate < skip_rate and skip_rate==dec_rate):
                     for lr in config['initial_learning_rate']:
                         for min_lr in config['minimum_learning_rate_relative_to_iterative']:
-                            try:
-                                train_func(
-                                    config={
-                                        **config,
-                                        'training':{
-                                            'initial_learning_rate': lr,
-                                            'minimum_learning_rate': min_lr*lr
-                                        },
-                                        'model_parameters':{
-                                            'class_num':config['class_num'],
-                                            'vcf_class_num':config['vcf_class_num'],
-                                            'vcf_mode':config['vcf_mode'],
-                                            'p3':enc_rate,
-                                            'p4':skip_rate,
-                                            'p5':dec_rate,
-                                        }
+                            train_func(
+                                config={
+                                    **config,
+                                    'training':{
+                                        'initial_learning_rate': lr,
+                                        'minimum_learning_rate': min_lr*lr
                                     },
-                                    train_paths=train_path, valid_paths=valid_path,
-                                )
-                            except Exception as e:
-                                import traceback
-                                with open("crash.log", "w") as f:
-                                    traceback.print_exc(file=f)
+                                    'model_parameters':{
+                                        'name':config['model_name'],
+                                        'num_classes':config['class_num'],
+                                        'p3':enc_rate,
+                                        'p4':skip_rate,
+                                        'p5':dec_rate,
+                                    }
+                                },
+                                train_paths=train_paths, valid_paths=valid_paths,
+                            )

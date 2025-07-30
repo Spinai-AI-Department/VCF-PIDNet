@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchmetrics.classification import MultilabelAccuracy, MultilabelF1Score, MultilabelAveragePrecision
 
 def get_metric(metric_name, device=None):
 
@@ -9,24 +8,8 @@ def get_metric(metric_name, device=None):
         return meanIoU
     elif metric_name == "f1Score":
         return f1_score
-    elif metric_name == "subset_accuracy" or metric_name == "cls_f1Score" or metric_name == "mAP":
-        return ClsMetric(metric_name=metric_name, device=device)
     else:
         raise RuntimeError("There is no metric named {}".format(metric_name))
-
-class ClsMetric(object):
-    def __init__(self, metric_name, device):
-        if metric_name == "subset_accuracy":
-            self.metric = MultilabelAccuracy(num_labels=10, average='macro').to(device)
-        elif metric_name == "cls_f1Score":
-            self.metric = MultilabelF1Score(num_labels=10, average='macro').to(device)
-        elif metric_name == "mAP":
-            self.metric = MultilabelAveragePrecision(num_labels=10, average="macro").to(device)
-    def __call__(self, logits, label):
-        assert len(logits.shape) == 2 and len(label.shape) == 2 and logits.shape == label.shape, f"Logit Shape: {logits.shape}, Label Shape: {label.shape}"
-        probs = torch.sigmoid(logits)
-        score = self.metric(probs, label)
-        return score
 
 
 

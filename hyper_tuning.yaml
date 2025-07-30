@@ -2,7 +2,7 @@
 dataset_path: /Users/spinai_dev/Dropbox/006_researchdata/0005_Lat_Lxray_label/won_dataset # C:\Users\taesh\Dropbox\006_researchdata\0005_Lat_Lxray_label\won_dataset
 
 # Training
-batch_size: 8
+batch_size: 2
 epoch_num: 100
 height: 1024
 width: 1024
@@ -18,32 +18,21 @@ earlystopping_target: val_meanIoU
 earlystopping_patience: 75
 plot:
   - loss
+  - sem_loss
   - bd_loss
-  - vcf_loss
-  - vcf_subset_accuracy
-  - vcf_cls_f1Score
-  - vcf_mAP
   - meanIoU
   - f1Score
 # Model  
 model_name: pidnet_s
 in_channels: 3
 class_num: 11
-vcf_class_num: 10
-vcf_mode: 1
-is_cls: True
 # metric & loss
 metirc_func:
   - meanIoU
   - f1Score
-cls_metric_func:
-  - subset_accuracy
-  - cls_f1Score
-  - mAP
-loss_name: pidnet-custom
 loss_config:
-  loss_type: fc
-  vcf_loss_type: bce # bce, sm, fc
+  loss_name: pidnet-custom
+  loss_type: ce
 # Dropout
 tuning: False
 p3: 0

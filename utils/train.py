@@ -87,7 +87,7 @@ def train_func(config, train_path, test_path):
     for each_func in config['metirc_func']:
         metric_func[each_func] = get_metric(each_func)
 
-    loss_func = get_loss(config['loss_name'])
+    loss_func = get_loss(**config['loss_config'])
 
     earlystopper = EarlyStopper(
         patience=config['earlystopping_patience'],

@@ -39,41 +39,6 @@ class CrossEntropy(nn.Module):
         else:
             raise ValueError("lengths of prediction and target are not identical!")
 
-
-class FocalClsLoss(nn.Module):
-    def __init__(self, alpha=None, gamma=2.0, reduction='mean'):
-        super().__init__()
-        self.alpha = alpha  # Tensor of shape [C] or scalar
-        self.gamma = gamma
-        self.reduction = reduction
-
-    def forward(self, logits, targets):
-        """
-        logits: (B, C) — raw outputs
-        targets: (B, C) — multi-label 0/1 targets
-        """
-        probs = torch.sigmoid(logits)                # (B, C)
-        pt = probs * targets + (1 - probs) * (1 - targets)  # pt = p if y==1 else 1-p
-        log_pt = torch.log(pt + 1e-8)
-        # focal term
-        focal_term = (1 - pt) ** self.gamma
-        # alpha weighting
-        if self.alpha is not None:
-            if isinstance(self.alpha, (float, int)):
-                alpha = torch.full_like(targets, self.alpha)
-            else:
-                alpha = self.alpha.to(logits.device)  # (C,)
-                alpha = alpha.unsqueeze(0).expand_as(targets)  # (B, C)
-            loss = -alpha * focal_term * log_pt
-        else:
-            loss = -focal_term * log_pt
-
-        if self.reduction == 'mean':
-            return loss.mean()
-        elif self.reduction == 'sum':
-            return loss.sum()
-        return loss  # (B, C)
-    
 class Focal(nn.Module):
     def __init__(self, alpha=1, gamma=2, reduction='mean', ignore_label=-1):
         super(Focal, self).__init__()

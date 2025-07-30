@@ -3,38 +3,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 # from pytorch_msssim import MS_SSIM
 try:
-    from PIDNet.utils.utils import Custom_loss, Custom_loss_cls
-    from PIDNet.utils.criterion import BondaryLoss, CrossEntropy, OhemCrossEntropy, Focal, FocalClsLoss
+    from PIDNet.utils.utils import Custom_loss
+    from PIDNet.utils.criterion import BondaryLoss, CrossEntropy, OhemCrossEntropy, Focal
 except:
-    from .PIDNet.utils.utils import Custom_loss, Custom_loss_cls
-    from .PIDNet.utils.criterion import BondaryLoss, CrossEntropy, OhemCrossEntropy, Focal, FocalClsLoss
+    from .PIDNet.utils.utils import Custom_loss
+    from .PIDNet.utils.criterion import BondaryLoss, CrossEntropy, OhemCrossEntropy, Focal
 SMOOTH = 1.0e-8
 
 
-def get_loss(loss_name, loss_config, is_cls=False):
+def get_loss(loss_name, loss_type):
 
     if loss_name == "pidnet-custom":
         
-        if loss_config['loss_type'] == 'ce':
+        if loss_type == 'ce':
             sem_func = CrossEntropy()
-        elif loss_config['loss_type'] == 'fc':
+        elif loss_type == 'fc':
             sem_func = Focal()
         else:
             sem_func = OhemCrossEntropy(ignore_label=255, thres= 0.9, min_kept=131072)
         bn_loss = BondaryLoss()
-        if is_cls:
-            if loss_config['vcf_loss_type'] == 'bce':
-                vcf_sem_loss = nn.BCEWithLogitsLoss()
-            elif loss_config['vcf_loss_type'] == 'fc':
-                vcf_sem_loss = FocalClsLoss()
-            elif loss_config['vcf_loss_type'] == 'ms':
-                vcf_sem_loss = nn.MultiLabelSoftMarginLoss()
-            
-            loss = Custom_loss_cls(sem_func, vcf_sem_loss, bn_loss)
-        else:
-            raise RuntimeError(is_cls)
-            vcf_sem_loss = Focal()
-            loss = Custom_loss(sem_func, vcf_sem_loss, bn_loss)
+
+        loss = Custom_loss(sem_func, bn_loss)
         
         return loss
     elif loss_name=="hybrid":
